@@ -242,6 +242,8 @@ fn main() {
                         );
                     },
 
+                    Ok((_stream_id, quiche::h3::Event::WebTransportData(_session_id))) => {},
+
                     Ok((stream_id, quiche::h3::Event::Data)) => {
                         while let Ok(read) =
                             http3_conn.recv_body(&mut conn, stream_id, &mut buf)

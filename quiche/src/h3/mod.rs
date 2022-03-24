@@ -170,6 +170,8 @@
 //!
 //!         Ok((_flow_id, quiche::h3::Event::Datagram)) => (),
 //!
+//!         Ok((stream_id, quiche::h3::Event::WebTransportData(session_id))) => (),
+//!
 //!         Ok((goaway_id, quiche::h3::Event::GoAway)) => {
 //!              // Peer signalled it is going away, handle it.
 //!         },
@@ -230,6 +232,8 @@
 //!
 //!         Ok((_flow_id, quiche::h3::Event::Datagram)) => (),
 //!
+//!         Ok((stream_id, quiche::h3::Event::WebTransportData(session_id))) => (),
+//!
 //!         Ok((goaway_id, quiche::h3::Event::GoAway)) => {
 //!              // Peer signalled it is going away, handle it.
 //!         },
@@ -279,7 +283,7 @@
 
 use std::collections::VecDeque;
 
-use crate::{octets, h3::stream::WEBTRANSPORT_STREAM_TYPE_ID};
+use crate::octets;
 
 /// List of ALPN tokens of supported HTTP/3 versions.
 ///
@@ -587,6 +591,19 @@ pub enum Event {
     /// [`Done`]: enum.Error.html#variant.Done
     Data,
 
+    /// WebTransport Data was received
+    ///
+    /// This indicates that the application can use the [`recv_webtransport_data()`] method
+    /// to retrieve the data from the stream.
+    ///
+    /// Note that [`recv_webtransport_data()`] will need to be called repeatedly until the
+    /// [`Done`] value is returned, as the event will not be re-armed until all
+    /// buffered data is read.
+    ///
+    /// [`recv_webtransport_data()`]: struct.Connection.html#method.recv_body
+    /// [`Done`]: enum.Error.html#variant.Done
+    WebTransportData(u64),
+
     /// Stream was closed,
     Finished,
 
@@ -679,7 +696,7 @@ impl Connection {
                 max_field_section_size: config.max_field_section_size,
                 qpack_max_table_capacity: config.qpack_max_table_capacity,
                 qpack_blocked_streams: config.qpack_blocked_streams,
-                enable_webtransport: if config.enable_webtransport { Some(1) } else { None  },
+                enable_webtransport: if config.enable_webtransport { Some(1) } else { None },
                 h3_datagram,
                 raw: Default::default(),
             },
@@ -814,6 +831,44 @@ impl Connection {
             .next_request_stream_id
             .checked_add(4)
             .ok_or(Error::IdError)?;
+
+        Ok(stream_id)
+    }
+
+    /// Open new stream for WebTransport
+    pub fn open_webtransport_straem(
+        &mut self, conn: &mut super::Connection, session_id: u64, bidi: bool,
+    ) -> Result<u64> {
+
+        let stream_id = if bidi {
+            let stream_id = self.next_request_stream_id;
+
+            let mut d = vec![0; octets::varint_len(session_id) + 8];
+            let mut b = octets::OctetsMut::with_slice(&mut d);
+            b.put_varint(frame::WEBTRANSPORT_FRAME_TYPE_ID)?;
+            b.put_varint(session_id)?;
+            let off = b.off();
+            conn.stream_send(stream_id, &d[..off], false)?;
+
+            if let Some(s) = self.streams.get_mut(&stream_id) {
+                s.initialize_local();
+            }
+
+            // To avoid skipping stream IDs, we only calculate the next available
+            // stream ID when a request has been successfully buffered.
+            self.next_request_stream_id = self
+                .next_request_stream_id
+                .checked_add(4)
+                .ok_or(Error::IdError)?;
+
+            stream_id
+        } else {
+            let stream_id = self.open_uni_stream(conn, stream::WEBTRANSPORT_STREAM_TYPE_ID)?;
+            let mut d = vec![0; octets::varint_len(session_id)];
+            let mut b = octets::OctetsMut::with_slice(&mut d);
+            b.put_varint(session_id)?;
+            stream_id
+        };
 
         Ok(stream_id)
     }
@@ -1242,6 +1297,57 @@ impl Connection {
         if conn.stream_finished(stream_id) {
             self.process_finished_stream(stream_id);
         }
+
+        if total == 0 {
+            return Err(Error::Done);
+        }
+
+        Ok(total)
+    }
+
+    /// Reads WebTransport data into the provided buffer.
+    ///
+    /// Applications should call this method whenever the [`poll()`] method
+    /// returns a [`Data`] event.
+    ///
+    /// On success the amount of bytes read is returned, or [`Done`] if there
+    /// is no data to read.
+    ///
+    /// [`poll()`]: struct.Connection.html#method.poll
+    /// [`Data`]: enum.Event.html#variant.Data
+    /// [`Done`]: enum.Error.html#variant.Done
+    pub fn recv_webtransport_data(
+        &mut self, conn: &mut super::Connection, stream_id: u64, out: &mut [u8],
+    ) -> Result<usize> {
+        let mut total = 0;
+
+        while total < out.len() {
+            let stream = self.streams.get_mut(&stream_id).ok_or(Error::Done)?;
+
+            if stream.state() != stream::State::WebTransportData {
+                break;
+            }
+
+            let (read, fin) =
+                match stream.try_consume_webtransport_data(conn, &mut out[total..]) {
+                    Ok(v) => v,
+
+                    Err(Error::Done) => break,
+
+                    Err(e) => return Err(e),
+                };
+
+            total += read;
+
+            if read == 0 || fin {
+                break;
+            }
+        }
+
+        if conn.stream_finished(stream_id) {
+            self.process_finished_stream(stream_id);
+        }
+
 
         if total == 0 {
             return Err(Error::Done);
@@ -1748,6 +1854,7 @@ impl Connection {
                             // TODO: we MAY send STOP_SENDING
                         },
 
+                        stream::Type::WebTransport => unreachable!(),
                         stream::Type::Request => unreachable!(),
                     }
                 },
@@ -1884,6 +1991,37 @@ impl Connection {
                     break;
                 },
 
+                stream::State::WebTransportSessionId => {
+                    stream.try_fill_buffer(conn)?;
+
+                    let varint = match stream.try_consume_varint() {
+                        Ok(v) => v,
+
+                        Err(_) => continue,
+                    };
+
+                    if let Err(e) = stream.set_webtransport_session_id(varint) {
+                        conn.close(true, e.to_wire(), b"")?;
+                        return Err(e);
+                    }
+                },
+
+                stream::State::WebTransportData => {
+                    // Do not emit events when not polling.
+                    if !polling {
+                        break;
+                    }
+
+                    if !stream.try_trigger_webtransport_data_event() {
+                        break;
+                    }
+
+                    if let Some(session_id) = stream.webtransport_session_id() {
+                        return Ok((stream_id, Event::WebTransportData(session_id)));
+                    }
+
+                },
+
                 stream::State::Finished => break,
             }
         }
@@ -1903,7 +2041,7 @@ impl Connection {
         }
 
         match stream.ty() {
-            Some(stream::Type::Request) | Some(stream::Type::Push) => {
+            Some(stream::Type::Request) | Some(stream::Type::Push) | Some(stream::Type::WebTransport) => {
                 stream.finished();
 
                 self.finished_streams.push_back(stream_id);
@@ -2125,19 +2263,6 @@ impl Connection {
                 }
 
                 // TODO: implement CANCEL_PUSH frame
-            },
-
-            frame::Frame::WebTransport { .. } => {
-                if stream_id !=  WEBTRANSPORT_STREAM_TYPE_ID {
-                    conn.close(
-                        true,
-                        Error::FrameUnexpected.to_wire(),
-                        b"WEBTRANSPORT frame received on non-webtransport stream",
-                    )?;
-
-                    return Err(Error::FrameUnexpected);
-                }
-                // Do nothing. The WebTransport event is returned separately.
             },
 
             frame::Frame::Unknown => (),
