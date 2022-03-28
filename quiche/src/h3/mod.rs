@@ -170,7 +170,7 @@
 //!
 //!         Ok((_flow_id, quiche::h3::Event::Datagram)) => (),
 //!
-//!         Ok((stream_id, quiche::h3::Event::WebTransportData(session_id))) => (),
+//!         Ok((stream_id, quiche::h3::Event::WebTransportStreamData(session_id))) => (),
 //!
 //!         Ok((goaway_id, quiche::h3::Event::GoAway)) => {
 //!              // Peer signalled it is going away, handle it.
@@ -232,7 +232,7 @@
 //!
 //!         Ok((_flow_id, quiche::h3::Event::Datagram)) => (),
 //!
-//!         Ok((stream_id, quiche::h3::Event::WebTransportData(session_id))) => (),
+//!         Ok((stream_id, quiche::h3::Event::WebTransportStreamData(session_id))) => (),
 //!
 //!         Ok((goaway_id, quiche::h3::Event::GoAway)) => {
 //!              // Peer signalled it is going away, handle it.
@@ -593,16 +593,16 @@ pub enum Event {
 
     /// WebTransport Data was received
     ///
-    /// This indicates that the application can use the [`recv_webtransport_data()`] method
+    /// This indicates that the application can use the [`recv_webtransport_stream_data()`] method
     /// to retrieve the data from the stream.
     ///
-    /// Note that [`recv_webtransport_data()`] will need to be called repeatedly until the
+    /// Note that [`recv_webtransport_stream_data()`] will need to be called repeatedly until the
     /// [`Done`] value is returned, as the event will not be re-armed until all
     /// buffered data is read.
     ///
-    /// [`recv_webtransport_data()`]: struct.Connection.html#method.recv_body
+    /// [`recv_webtransport_stream_data()`]: struct.Connection.html#method.recv_body
     /// [`Done`]: enum.Error.html#variant.Done
-    WebTransportData(u64),
+    WebTransportStreamData(u64),
 
     /// Stream was closed,
     Finished,
@@ -835,21 +835,27 @@ impl Connection {
         Ok(stream_id)
     }
 
+    /// Send FrameType and SessionId for bidirectional WebTransport stream.
+    pub fn send_webtransport_frame_header(
+        &mut self, conn: &mut super::Connection, session_id: u64, stream_id: u64,
+    ) -> Result<()> {
+        let mut d = vec![0; octets::varint_len(session_id) + 8];
+        let mut b = octets::OctetsMut::with_slice(&mut d);
+        b.put_varint(frame::WEBTRANSPORT_FRAME_TYPE_ID)?;
+        b.put_varint(session_id)?;
+        let off = b.off();
+        conn.stream_send(stream_id, &d[..off], false)?;
+        Ok(())
+    }
+
     /// Open new stream for WebTransport
-    pub fn open_webtransport_straem(
+    pub fn open_webtransport_stream(
         &mut self, conn: &mut super::Connection, session_id: u64, bidi: bool,
     ) -> Result<u64> {
 
         let stream_id = if bidi {
             let stream_id = self.next_request_stream_id;
-
-            let mut d = vec![0; octets::varint_len(session_id) + 8];
-            let mut b = octets::OctetsMut::with_slice(&mut d);
-            b.put_varint(frame::WEBTRANSPORT_FRAME_TYPE_ID)?;
-            b.put_varint(session_id)?;
-            let off = b.off();
-            conn.stream_send(stream_id, &d[..off], false)?;
-
+            self.send_webtransport_frame_header(conn, session_id, stream_id)?;
             if let Some(s) = self.streams.get_mut(&stream_id) {
                 s.initialize_local();
             }
@@ -1316,7 +1322,7 @@ impl Connection {
     /// [`poll()`]: struct.Connection.html#method.poll
     /// [`Data`]: enum.Event.html#variant.Data
     /// [`Done`]: enum.Error.html#variant.Done
-    pub fn recv_webtransport_data(
+    pub fn recv_webtransport_stream_data(
         &mut self, conn: &mut super::Connection, stream_id: u64, out: &mut [u8],
     ) -> Result<usize> {
         let mut total = 0;
@@ -1324,7 +1330,7 @@ impl Connection {
         while total < out.len() {
             let stream = self.streams.get_mut(&stream_id).ok_or(Error::Done)?;
 
-            if stream.state() != stream::State::WebTransportData {
+            if stream.state() != stream::State::WebTransportStreamData {
                 break;
             }
 
@@ -2006,7 +2012,7 @@ impl Connection {
                     }
                 },
 
-                stream::State::WebTransportData => {
+                stream::State::WebTransportStreamData => {
                     // Do not emit events when not polling.
                     if !polling {
                         break;
@@ -2017,7 +2023,7 @@ impl Connection {
                     }
 
                     if let Some(session_id) = stream.webtransport_session_id() {
-                        return Ok((stream_id, Event::WebTransportData(session_id)));
+                        return Ok((stream_id, Event::WebTransportStreamData(session_id)));
                     }
 
                 },

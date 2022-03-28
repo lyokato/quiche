@@ -68,7 +68,7 @@ pub enum State {
     WebTransportSessionId,
 
     /// Reading the WebTransport data.
-    WebTransportData,
+    WebTransportStreamData,
 
     /// Reading DATA payload.
     Data,
@@ -154,7 +154,7 @@ pub struct Stream {
     /// Whether a `Data` event has been triggered for this stream.
     data_event_triggered: bool,
 
-    /// Whether a `WebTransportData` event has been triggered for this stream.
+    /// Whether a `WebTransportStreamData` event has been triggered for this stream.
     webtransport_data_event_triggered: bool,
 }
 
@@ -396,7 +396,7 @@ impl Stream {
             self.ty == Some(Type::WebTransport)
         {
             self.webtransport_session_id = Some(session_id);
-            self.state_transition(State::WebTransportData, 0, false)?;
+            self.state_transition(State::WebTransportStreamData, 0, false)?;
             return Ok(());
         }
         Err(Error::InternalError)
@@ -575,7 +575,7 @@ impl Stream {
             Ok(v) => v,
 
             Err(e) => {
-                // The stream is not readable anymore, so re-arm the WebTransportData event.
+                // The stream is not readable anymore, so re-arm the WebTransportStreamData event.
                 if e == crate::Error::Done {
                     self.reset_webtransport_data_event();
                 }
@@ -584,7 +584,7 @@ impl Stream {
             },
         };
 
-        // The stream is not readable anymore, so re-arm the WebTransportData event.
+        // The stream is not readable anymore, so re-arm the WebTransportStreamData event.
         if !conn.stream_readable(self.id) {
             self.reset_webtransport_data_event();
         }

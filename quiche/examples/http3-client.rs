@@ -242,7 +242,7 @@ fn main() {
                         );
                     },
 
-                    Ok((_stream_id, quiche::h3::Event::WebTransportData(_session_id))) => {},
+                    Ok((_stream_id, quiche::h3::Event::WebTransportStreamData(_session_id))) => {},
 
                     Ok((stream_id, quiche::h3::Event::Data)) => {
                         while let Ok(read) =
