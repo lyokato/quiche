@@ -11174,4 +11174,4 @@ mod ranges;
 mod recovery;
 mod stream;
 mod tls;
-mod webtransport;
+pub mod webtransport;
