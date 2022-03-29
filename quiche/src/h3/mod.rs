@@ -1158,6 +1158,17 @@ impl Connection {
             conn.dgram_max_writable_len().is_some()
     }
 
+    /// Returns whether the peer enabled WebTransport support.
+    ///
+    /// Support is signalled by the peer's SETTINGS, so this method always
+    /// returns false until they have been processed using the [`poll()`]
+    /// method.
+    ///
+    /// [`poll()`]: struct.Connection.html#method.poll
+    pub fn webtransport_enabled_by_peer(&self, conn: &super::Connection) -> bool {
+        self.peer_settings.enable_webtransport == Some(1)
+    }
+
     /// Sends an HTTP/3 DATAGRAM with the specified flow ID.
     pub fn send_dgram(
         &mut self, conn: &mut super::Connection, flow_id: u64, buf: &[u8],
