@@ -302,6 +302,21 @@ impl WebTransportServer {
         Ok(Self::new(server_name, h3_conn))
     }
 
+    pub fn recv_stream_data(
+        &mut self, conn: &mut Connection, stream_id: u64, out: &mut [u8],
+    ) -> Result<usize> {
+        self.h3_conn
+            .recv_webtransport_stream_data(conn, stream_id, out)
+            .map_err(|e| e.into())
+    }
+
+    pub fn recv_dgram(
+        &mut self, conn: &mut Connection, buf: &mut [u8]
+    ) -> Result<(usize, u64, usize)> {
+        self.h3_conn.recv_dgram(conn, buf)
+            .map_err(|e| e.into())
+    }
+
     pub fn poll(
         &mut self,
         conn: &mut Connection,
@@ -368,11 +383,11 @@ impl WebTransportServer {
                 }
             },
 
-            Ok((stream_id, h3::Event::Datagram)) => {
-                if self.sessions.contains_key(&stream_id) {
-                    Ok((stream_id, ServerEvent::Datagram))
+            Ok((session_id, h3::Event::Datagram)) => {
+                if self.sessions.contains_key(&session_id) {
+                    Ok((session_id, ServerEvent::Datagram))
                 } else {
-                    Ok((stream_id, ServerEvent::HTTPEvent(h3::Event::Datagram)))
+                    Ok((session_id, ServerEvent::HTTPEvent(h3::Event::Datagram)))
                 }
             },
 
@@ -822,6 +837,21 @@ impl WebTransportClient {
             },
             None => Err(Error::SessionNotFound),
         }
+    }
+
+    pub fn recv_stream_data(
+        &mut self, conn: &mut Connection, stream_id: u64, out: &mut [u8],
+    ) -> Result<usize> {
+        self.h3_conn
+            .recv_webtransport_stream_data(conn, stream_id, out)
+            .map_err(|e| e.into())
+    }
+
+    pub fn recv_dgram(
+        &mut self, conn: &mut Connection, buf: &mut [u8]
+    ) -> Result<(usize, u64, usize)> {
+        self.h3_conn.recv_dgram(conn, buf)
+            .map_err(|e| e.into())
     }
 
     pub fn send_dgram(
