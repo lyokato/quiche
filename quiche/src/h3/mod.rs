@@ -873,6 +873,8 @@ impl Connection {
             let mut d = vec![0; octets::varint_len(session_id)];
             let mut b = octets::OctetsMut::with_slice(&mut d);
             b.put_varint(session_id)?;
+            let off = b.off();
+            conn.stream_send(stream_id, &d[..off], false)?;
             stream_id
         };
 
