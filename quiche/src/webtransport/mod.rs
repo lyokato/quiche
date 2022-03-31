@@ -257,7 +257,7 @@ fn validate_param(
 fn is_webtransport_request(list: &[h3::Header]) -> Result<()> {
     let mut headers = list.into_iter();
     validate_param(&mut headers, ":method", "CONNECT")?;
-    validate_param(&mut headers, "protocol", "webtransport")?;
+    validate_param(&mut headers, ":protocol", "webtransport")?;
     Ok(())
 }
 
