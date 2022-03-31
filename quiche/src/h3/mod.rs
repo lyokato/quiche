@@ -839,7 +839,7 @@ impl Connection {
     pub fn send_webtransport_frame_header(
         &mut self, conn: &mut super::Connection, session_id: u64, stream_id: u64,
     ) -> Result<()> {
-        let mut d = vec![0; octets::varint_len(session_id) + 8];
+        let mut d = vec![0; octets::varint_len(frame::WEBTRANSPORT_FRAME_TYPE_ID) + octets::varint_len(session_id)];
         let mut b = octets::OctetsMut::with_slice(&mut d);
         b.put_varint(frame::WEBTRANSPORT_FRAME_TYPE_ID)?;
         b.put_varint(session_id)?;

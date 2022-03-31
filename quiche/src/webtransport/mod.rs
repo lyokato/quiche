@@ -520,7 +520,9 @@ impl WebTransportServer {
                             (false, true) => self.send_stream_data_internal(conn, stream_id, data),
                             // bidirectional, remote
                             (true, false) => {
+                                println!("SEND TO REMOTE-BIDI STREAM");
                                 if !stream.is_initialized() {
+                                    println!("SEND WEBTRANSPORT HEADER");
                                     self.h3_conn
                                         .send_webtransport_frame_header(conn, session_id, stream_id)?;
                                     stream.mark_initialized();
