@@ -1871,7 +1871,7 @@ impl Connection {
                             // TODO: we MAY send STOP_SENDING
                         },
 
-                        stream::Type::WebTransport => unreachable!(),
+                        stream::Type::WebTransport => {},
                         stream::Type::Request => unreachable!(),
                     }
                 },
