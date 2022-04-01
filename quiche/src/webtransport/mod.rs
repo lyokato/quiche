@@ -3,7 +3,6 @@ use std::str;
 use crate::h3::{self, Header, NameValue};
 use crate::Connection;
 use crate::stream::is_bidi;
-use crate::octets;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Error {
