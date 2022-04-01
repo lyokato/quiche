@@ -513,24 +513,12 @@ impl WebTransportServer {
             Some(session) => {
                 match session.get_stream(stream_id) {
                     Some(stream) => {
-                        match (stream.is_bidi(), stream.is_local()) {
-                            // can't write to remote and unidirectional stream.
-                            (false, false) => Err(Error::InvalidStream),
-                            // uni-directional, local
-                            (false, true) => self.send_stream_data_internal(conn, stream_id, data),
-                            // bidirectional, remote
-                            (true, false) => {
-                                /*
-                                if !stream.is_initialized() {
-                                    self.h3_conn
-                                        .send_webtransport_frame_header(conn, session_id, stream_id)?;
-                                    stream.mark_initialized();
-                                }
-                                */
-                                self.send_stream_data_internal(conn, stream_id, data)
-                            },
-                            // bidirectional, local
-                            (true, true) => self.send_stream_data_internal(conn, stream_id, data),
+                        if !stream.is_bidi() && !stream.is_local() {
+                            // can't send data throught remote-uni-stream
+                            Err(Error::InvalidStream)
+                        } else {
+                            let written = conn.stream_send(stream_id, &data, false)?;
+                            Ok(written)
                         }
                     },
                     None => Err(Error::StreamNotFound),
@@ -555,18 +543,6 @@ impl WebTransportServer {
         }
     }
 
-    fn send_stream_data_internal(
-        &self, conn: &mut Connection, stream_id: u64, data: &[u8],
-    ) -> Result<usize> {
-        //match conn.stream_capacity(stream_id) {
-        //    Ok(cap) => {
-        //        let len = std::cmp::min(cap, data.len());
-                let written = conn.stream_send(stream_id, &data, false)?;
-                Ok(written)
-        //    },
-        //    Err(e) => Err(e.into()),
-        //}
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -879,14 +855,8 @@ impl WebTransportClient {
     fn send_stream_data_internal(
         &self, conn: &mut Connection, stream_id: u64, data: &[u8],
     ) -> Result<usize> {
-        match conn.stream_capacity(stream_id) {
-            Ok(cap) => {
-                let len = std::cmp::min(cap, data.len());
-                let written = conn.stream_send(stream_id, &data[..len], false)?;
-                Ok(written)
-            },
-            Err(e) => Err(e.into()),
-        }
+        let written = conn.stream_send(stream_id, &data, false)?;
+        Ok(written)
     }
 }
 
