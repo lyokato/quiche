@@ -479,6 +479,7 @@ impl WebTransportServer {
         Ok(())
     }
 
+    /// open new WebTransport stream
     pub fn open_stream(
         &mut self,
         conn: &mut Connection,
@@ -502,7 +503,7 @@ impl WebTransportServer {
         }
     }
 
-    /// send stream  data
+    /// send WebTransport stream data
     pub fn send_stream_data(
         &mut self,
         conn: &mut Connection,
@@ -529,6 +530,7 @@ impl WebTransportServer {
         }
     }
 
+    /// send WebTransport dgram
     pub fn send_dgram(
         &mut self,
         conn: &mut Connection,
