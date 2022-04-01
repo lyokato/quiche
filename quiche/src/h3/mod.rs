@@ -681,12 +681,13 @@ impl Connection {
         config: &Config, is_server: bool, enable_dgram: bool,
     ) -> Result<Connection> {
         let initial_uni_stream_id = if is_server { 0x3 } else { 0x2 };
+        let initial_bidi_stream_id = if is_server { 0x1 } else { 0x0 };
         let h3_datagram = if enable_dgram { Some(1) } else { None };
 
         Ok(Connection {
             is_server,
 
-            next_request_stream_id: 0,
+            next_request_stream_id: initial_bidi_stream_id,
 
             next_uni_stream_id: initial_uni_stream_id,
 
@@ -1773,14 +1774,6 @@ impl Connection {
     fn process_readable_stream(
         &mut self, conn: &mut super::Connection, stream_id: u64, polling: bool,
     ) -> Result<(u64, Event)> {
-
-        if crate::stream::is_bidi(stream_id) {
-            if !self.streams.contains_key(&stream_id) {
-                self.next_request_stream_id = stream_id
-                    .checked_add(4)
-                    .ok_or(Error::IdError)?;
-            }
-        }
 
         self.streams
             .entry(stream_id)
