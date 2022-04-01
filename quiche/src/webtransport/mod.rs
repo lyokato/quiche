@@ -502,6 +502,7 @@ impl WebTransportServer {
         }
     }
 
+    /// send stream  data
     pub fn send_stream_data(
         &mut self,
         conn: &mut Connection,
@@ -517,13 +518,6 @@ impl WebTransportServer {
                             // can't send data throught remote-uni-stream
                             Err(Error::InvalidStream)
                         } else {
-                            if stream.is_bidi() && !stream.is_local() {
-                                if !stream.is_initialized() {
-                                    self.h3_conn
-                                        .send_webtransport_frame_header(conn, session_id, stream_id)?;
-                                    stream.mark_initialized();
-                                }
-                            }
                             let written = conn.stream_send(stream_id, &data, false)?;
                             Ok(written)
                         }
