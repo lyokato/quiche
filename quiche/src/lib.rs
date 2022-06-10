@@ -1076,8 +1076,14 @@ pub struct Connection {
     /// frame.
     peer_error: Option<ConnectionError>,
 
+    /// Path challenge which you want to send.
+    sending_challenge: Option<[u8; 8]>,
+
     /// Received path challenge.
     challenge: Option<[u8; 8]>,
+
+    /// Received path response.
+    path_response: Option<[u8; 8]>,
 
     /// The connection-level limit at which send blocking occurred.
     blocked_limit: Option<u64>,
@@ -1500,6 +1506,10 @@ impl Connection {
             peer_error: None,
 
             challenge: None,
+
+            sending_challenge: None,
+
+            path_response: None,
 
             blocked_limit: None,
 
@@ -3003,9 +3013,19 @@ impl Connection {
         // Create PATH_RESPONSE frame.
         if let Some(challenge) = self.challenge {
             let frame = frame::Frame::PathResponse { data: challenge };
-
             if push_frame_to_pkt!(b, frames, frame, left) {
                 self.challenge = None;
+
+                ack_eliciting = true;
+                in_flight = true;
+            }
+        }
+
+        // Create PATH_CHALLENGE frame.
+        if let Some(challenge) = self.sending_challenge {
+            let frame = frame::Frame::PathChallenge { data: challenge };
+            if push_frame_to_pkt!(b, frames, frame, left) {
+                self.sending_challenge = None;
 
                 ack_eliciting = true;
                 in_flight = true;
@@ -4620,6 +4640,16 @@ impl Connection {
         self.local_error.as_ref()
     }
 
+    /// Set PathChallenge data to be sent
+    pub fn send_path_challenge(&mut self, data: [u8; 8]) {
+        self.sending_challenge = Some(data);
+    }
+
+    /// Take last PathResponse data
+    pub fn take_path_response(&mut self) -> Option<[u8; 8]> {
+        self.path_response.take()
+    }
+
     /// Collects and returns statistics about the connection.
     #[inline]
     pub fn stats(&self) -> Stats {
@@ -5238,7 +5268,9 @@ impl Connection {
                 self.challenge = Some(data);
             },
 
-            frame::Frame::PathResponse { .. } => (),
+            frame::Frame::PathResponse { data } => {
+                self.path_response = Some(data);
+            },
 
             frame::Frame::ConnectionClose {
                 error_code, reason, ..
@@ -7880,6 +7912,17 @@ mod tests {
             iter.next(),
             Some(&frame::Frame::PathResponse { data: [0xba; 8] })
         );
+    }
+
+    #[test]
+    fn send_path_challenge_and_recv_path_response() {
+        let mut pipe = testing::Pipe::default().unwrap();
+        assert_eq!(pipe.handshake(), Ok(()));
+
+        assert_eq!(pipe.client.take_path_response(), None);
+        pipe.client.send_path_challenge([0xba; 8]);
+        assert_eq!(pipe.advance(), Ok(()));
+        assert_eq!(pipe.client.take_path_response(), Some([0xba; 8]));
     }
 
     #[test]
