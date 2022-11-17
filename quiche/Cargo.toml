@@ -62,6 +62,9 @@ winapi = { version = "0.3", features = ["wincrypt"] }
 [dev-dependencies]
 mio = "0.6"
 url = "1"
+env_logger = "0.9.3"
+pem = "1.1.0"
+boring = { version = "2.0.0" }
 
 [lib]
 crate-type = ["lib", "staticlib", "cdylib"]
