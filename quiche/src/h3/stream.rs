@@ -711,7 +711,7 @@ mod tests {
             qpack_max_table_capacity: Some(0),
             qpack_blocked_streams: Some(0),
             h3_datagram: None,
-            enable_webtransport: None,
+            webtransport_max_sessions: None,
             grease: None,
             raw: Some(raw_settings),
         };
@@ -775,7 +775,7 @@ mod tests {
             qpack_max_table_capacity: Some(0),
             qpack_blocked_streams: Some(0),
             h3_datagram: None,
-            enable_webtransport: None,
+            webtransport_max_sessions: None,
             grease: None,
             raw: Some(raw_settings),
         };
@@ -848,7 +848,7 @@ mod tests {
             qpack_max_table_capacity: Some(0),
             qpack_blocked_streams: Some(0),
             h3_datagram: None,
-            enable_webtransport: None,
+            webtransport_max_sessions: None,
             grease: None,
             raw: Some(raw_settings),
         };
@@ -900,7 +900,7 @@ mod tests {
             qpack_max_table_capacity: Some(0),
             qpack_blocked_streams: Some(0),
             h3_datagram: None,
-            enable_webtransport: None,
+            webtransport_max_sessions: None,
             grease: None,
             raw: Some(raw_settings),
         };

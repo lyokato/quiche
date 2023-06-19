@@ -634,7 +634,7 @@ struct ConnectionSettings {
     pub qpack_max_table_capacity: Option<u64>,
     pub qpack_blocked_streams: Option<u64>,
     pub h3_datagram: Option<u64>,
-    pub enable_webtransport: Option<u64>,
+    pub webtransport_max_sessions: Option<u64>,
     pub raw: Option<Vec<(u64, u64)>>,
 }
 
@@ -697,7 +697,7 @@ impl Connection {
                 max_field_section_size: config.max_field_section_size,
                 qpack_max_table_capacity: config.qpack_max_table_capacity,
                 qpack_blocked_streams: config.qpack_blocked_streams,
-                enable_webtransport: if config.enable_webtransport { Some(1) } else { None },
+                webtransport_max_sessions: if config.enable_webtransport { Some(1) } else { None },
                 h3_datagram,
                 raw: Default::default(),
             },
@@ -707,7 +707,7 @@ impl Connection {
                 qpack_max_table_capacity: None,
                 qpack_blocked_streams: None,
                 h3_datagram: None,
-                enable_webtransport: None,
+                webtransport_max_sessions: None,
                 raw: Default::default(),
             },
 
@@ -1180,7 +1180,7 @@ impl Connection {
     ///
     /// [`poll()`]: struct.Connection.html#method.poll
     pub fn webtransport_enabled_by_peer(&self) -> bool {
-        self.peer_settings.enable_webtransport == Some(1)
+        self.peer_settings.webtransport_max_sessions == Some(1)
     }
 
     /// Sends an HTTP/3 DATAGRAM with the specified flow ID.
@@ -1729,7 +1729,7 @@ impl Connection {
                 .qpack_max_table_capacity,
             qpack_blocked_streams: self.local_settings.qpack_blocked_streams,
             h3_datagram: self.local_settings.h3_datagram,
-            enable_webtransport: self.local_settings.enable_webtransport,
+            webtransport_max_sessions: self.local_settings.webtransport_max_sessions,
             grease,
             raw: Default::default(),
         };
@@ -2100,7 +2100,7 @@ impl Connection {
                 qpack_max_table_capacity,
                 qpack_blocked_streams,
                 h3_datagram,
-                enable_webtransport,
+                webtransport_max_sessions,
                 raw,
                 ..
             } => {
@@ -2109,7 +2109,7 @@ impl Connection {
                     qpack_max_table_capacity,
                     qpack_blocked_streams,
                     h3_datagram,
-                    enable_webtransport,
+                    webtransport_max_sessions,
                     raw,
                 };
 
@@ -4020,7 +4020,7 @@ mod tests {
             qpack_max_table_capacity: None,
             qpack_blocked_streams: None,
             h3_datagram: Some(1),
-            enable_webtransport: None,
+            webtransport_max_sessions: None,
             grease: None,
             raw: Default::default(),
         };
