@@ -41,7 +41,7 @@ pub const SETTINGS_QPACK_MAX_TABLE_CAPACITY: u64 = 0x1;
 pub const SETTINGS_MAX_FIELD_SECTION_SIZE: u64 = 0x6;
 pub const SETTINGS_QPACK_BLOCKED_STREAMS: u64 = 0x7;
 //https://datatracker.ietf.org/doc/html/draft-ietf-masque-h3-datagram#section-7.1
-pub const SETTINGS_H3_DATAGRAM: u64 = 0xffd277;
+pub const SETTINGS_H3_DATAGRAM: u64 = 0x33;
 //pub const SETTINGS_H3_DATAGRAM: u64 = 0x276;
 
 // https://www.ietf.org/id/draft-ietf-webtrans-http3-02.html#section-8.2-3.4.1
